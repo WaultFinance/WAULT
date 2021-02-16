@@ -5,6 +5,8 @@
 ### Contracts
 
  * WaultFinance.sol - Main WAULT token contract.
+ * WaultLiquidityMining.sol - WAULT liquidity mining contract.
+ * WaultStaking.sol - WAULT staking contract.
 
 ### Installation
 
