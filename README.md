@@ -2,11 +2,11 @@
 
 ## Overview
 
-### Contracts
+### Contracts and their addresses on BSC
 
- * WaultFinance.sol - Main WAULT token contract.
- * WaultLiquidityMining.sol - WAULT liquidity mining contract.
- * WaultStaking.sol - WAULT staking contract.
+ * WaultFinance.sol - Main WAULT token contract. [0x6ff2d9e5891a7a7c554b80e0d1b791483c78bce9](https://bscscan.com/address/0x6ff2d9e5891a7a7c554b80e0d1b791483c78bce9)
+ * WaultLiquidityMining.sol - WAULT liquidity mining contract. [0x6f7a2b868a3babd26415fd4e8e2fee2630c9a74d](https://bscscan.com/address/0x6f7a2b868a3babd26415fd4e8e2fee2630c9a74d)
+ * WaultStaking.sol - WAULT staking contract. [0x52a2b3beafa46ba51a4792793a7447396d09423f](https://bscscan.com/address/0x52a2b3beafa46ba51a4792793a7447396d09423f)
 
 ### Installation
 
