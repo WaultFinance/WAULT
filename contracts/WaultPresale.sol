@@ -72,7 +72,7 @@ contract WaultPresale is Ownable {
         EndUnlockedEvent(block.timestamp);
     }
     function unlockClaim() external onlyOwner { 
-        require(!claimUnlocked, 'Presale already started!');
+        require(!claimUnlocked, 'Claim already allowed!');
         claimUnlocked = true; 
         ClaimUnlockedEvent(block.timestamp);
     }
