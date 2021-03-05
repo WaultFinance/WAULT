@@ -26,13 +26,12 @@ contract WaultLocker is Ownable{
     mapping (uint256 => Items) public lockedToken;
     mapping (address => mapping(address => uint256)) public walletTokenBalance;
     
-    uint256 public taxPermille;
+    uint256 public taxPermille = 2; //0.2%
     address public waultMarkingAddress;
     
     event Withdraw(address withdrawer, uint256 amount);
     
-    constructor(uint256 _taxPermille, address _waultMarkingAddress) {
-        taxPermille = _taxPermille;
+    constructor(address _waultMarkingAddress) {
         waultMarkingAddress = _waultMarkingAddress;
     }
     
@@ -116,11 +115,6 @@ contract WaultLocker is Ownable{
             }
         }
         emit Withdraw(msg.sender, lockedToken[_id].amount);
-    }
-    
-    function setTaxPermille(uint256 _taxPermille) external onlyOwner {
-        require(_taxPermille > 0 && _taxPermille < 1000, 'Wrong tax!');
-        taxPermille = _taxPermille;
     }
     
     function setWaultMarkingAddress(address _waultMarkingAddress) external onlyOwner {
