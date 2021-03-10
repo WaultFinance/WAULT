@@ -21,12 +21,11 @@ contract WaultLocker is Ownable{
     }
     
     uint256 public depositsCount;
-    mapping (address => uint256[]) public depositsByWithdrawerAddress;
     mapping (address => uint256[]) public depositsByTokenAddress;
     mapping (uint256 => Items) public lockedToken;
     mapping (address => mapping(address => uint256)) public walletTokenBalance;
     
-    uint256 public taxPermille = 2; //0.2%
+    uint256 public taxPermille = 2;
     address public waultMarkingAddress;
     
     event Withdraw(address withdrawer, uint256 amount);
@@ -36,7 +35,7 @@ contract WaultLocker is Ownable{
     }
     
     function lockTokens(IERC20 _token, address _withdrawer, uint256 _amount, uint256 _unlockTimestamp) external returns (uint256 _id) {
-        require(_amount > 0, 'Token amount too low!');
+        require(_amount > 500, 'Token amount too low!');
         require(_unlockTimestamp < 10000000000, 'Unlock timestamp is not in seconds!');
         require(_unlockTimestamp > block.timestamp, 'Unlock timestamp is not in the future!');
         require(_token.allowance(msg.sender, address(this)) >= _amount, 'Approve tokens first!');
@@ -57,12 +56,11 @@ contract WaultLocker is Ownable{
         lockedToken[_id].isCustom = false;
         lockedToken[_id].deposited = true;
         
-        depositsByWithdrawerAddress[_withdrawer].push(_id);
         depositsByTokenAddress[address(_token)].push(_id);
     }
     
     function addCustomLock(IERC20 _token, address _withdrawer, uint256 _amount, uint256 _unlockTimestamp, uint256 _taxPermille) external onlyOwner returns (uint256 _id) {
-        require(_amount > 0, 'Token amount too low!');
+        require(_amount > 500, 'Token amount too low!');
         require(_unlockTimestamp < 10000000000, 'Unlock timestamp is not in seconds!');
         require(_unlockTimestamp > block.timestamp, 'Unlock timestamp is not in the future!');
         
@@ -92,7 +90,6 @@ contract WaultLocker is Ownable{
         lockedToken[_id].amount = lockedToken[_id].amount.sub(tax);
         lockedToken[_id].deposited = true;
         
-        depositsByWithdrawerAddress[lockedToken[_id].withdrawer].push(_id);
         depositsByTokenAddress[address(lockedToken[_id].token)].push(_id);
     }
     
@@ -101,28 +98,17 @@ contract WaultLocker is Ownable{
         require(msg.sender == lockedToken[_id].withdrawer, 'You are not the withdrawer!');
         require(lockedToken[_id].deposited, 'Tokens are not yet deposited!');
         require(!lockedToken[_id].withdrawn, 'Tokens are already withdrawn!');
-        require(lockedToken[_id].token.transfer(msg.sender, lockedToken[_id].amount), 'Transfer of tokens failed!');
         
         lockedToken[_id].withdrawn = true;
         
         walletTokenBalance[address(lockedToken[_id].token)][msg.sender] = walletTokenBalance[address(lockedToken[_id].token)][msg.sender].sub(lockedToken[_id].amount);
         
-        for(uint256 i=0; i<depositsByWithdrawerAddress[lockedToken[_id].withdrawer].length; i++) {
-            if(depositsByWithdrawerAddress[lockedToken[_id].withdrawer][i] == _id) {
-                depositsByWithdrawerAddress[lockedToken[_id].withdrawer][i] = depositsByWithdrawerAddress[lockedToken[_id].withdrawer][depositsByWithdrawerAddress[lockedToken[_id].withdrawer].length - 1];
-                depositsByWithdrawerAddress[lockedToken[_id].withdrawer].pop();
-                break;
-            }
-        }
         emit Withdraw(msg.sender, lockedToken[_id].amount);
+        require(lockedToken[_id].token.transfer(msg.sender, lockedToken[_id].amount), 'Transfer of tokens failed!');
     }
     
     function setWaultMarkingAddress(address _waultMarkingAddress) external onlyOwner {
         waultMarkingAddress = _waultMarkingAddress;
-    }
-    
-    function getDepositsByWithdrawalAddress(address _withdrawerAddress) view external returns (uint256[] memory) {
-        return depositsByWithdrawerAddress[_withdrawerAddress];
     }
     
     function getDepositsByTokenAddress(address _token) view external returns (uint256[] memory) {
