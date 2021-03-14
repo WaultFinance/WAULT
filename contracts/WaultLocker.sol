@@ -3,11 +3,13 @@
 pragma solidity 0.7.6;
 
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v3.4/contracts/token/ERC20/IERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v3.4/contracts/token/ERC20/SafeERC20.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v3.4/contracts/math/SafeMath.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/release-v3.4/contracts/access/Ownable.sol";
 
 contract WaultLocker is Ownable{
     using SafeMath for uint256;
+    using SafeERC20 for IERC20;
     
     struct Items {
         IERC20 token;
@@ -39,10 +41,10 @@ contract WaultLocker is Ownable{
         require(_unlockTimestamp < 10000000000, 'Unlock timestamp is not in seconds!');
         require(_unlockTimestamp > block.timestamp, 'Unlock timestamp is not in the future!');
         require(_token.allowance(msg.sender, address(this)) >= _amount, 'Approve tokens first!');
-        require(_token.transferFrom(msg.sender, address(this), _amount), 'Transfer of tokens failed!');
+        _token.safeTransferFrom(msg.sender, address(this), _amount);
         
         uint256 tax = _amount.mul(taxPermille).div(1000);
-        require(_token.transfer(waultMarkingAddress, tax), 'Taxing failed!');
+        _token.safeTransfer(waultMarkingAddress, tax);
         
         walletTokenBalance[address(_token)][msg.sender] = walletTokenBalance[address(_token)][msg.sender].add(_amount.sub(tax));
         
@@ -80,10 +82,10 @@ contract WaultLocker is Ownable{
         require(!lockedToken[_id].deposited, 'Tokens already locked!');
         require(msg.sender == lockedToken[_id].withdrawer, 'You are not the withdrawer!');
         require(lockedToken[_id].token.allowance(msg.sender, address(this)) >= lockedToken[_id].amount, 'Approve tokens first!');
-        require(lockedToken[_id].token.transferFrom(msg.sender, address(this), lockedToken[_id].amount), 'Transfer of tokens failed!');
+        lockedToken[_id].token.safeTransferFrom(msg.sender, address(this), lockedToken[_id].amount);
         
         uint256 tax = lockedToken[_id].amount.mul(lockedToken[_id].taxPermille).div(1000);
-        require(lockedToken[_id].token.transfer(waultMarkingAddress, tax), 'Taxing failed!');
+        lockedToken[_id].token.safeTransfer(waultMarkingAddress, tax);
         
         walletTokenBalance[address(lockedToken[_id].token)][msg.sender] = walletTokenBalance[address(lockedToken[_id].token)][msg.sender].add(lockedToken[_id].amount.sub(tax));
         
@@ -104,7 +106,7 @@ contract WaultLocker is Ownable{
         walletTokenBalance[address(lockedToken[_id].token)][msg.sender] = walletTokenBalance[address(lockedToken[_id].token)][msg.sender].sub(lockedToken[_id].amount);
         
         emit Withdraw(msg.sender, lockedToken[_id].amount);
-        require(lockedToken[_id].token.transfer(msg.sender, lockedToken[_id].amount), 'Transfer of tokens failed!');
+        lockedToken[_id].token.safeTransfer(msg.sender, lockedToken[_id].amount);
     }
     
     function setWaultMarkingAddress(address _waultMarkingAddress) external onlyOwner {
