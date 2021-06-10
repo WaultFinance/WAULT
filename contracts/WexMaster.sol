@@ -1230,7 +1230,7 @@ contract WaultSwapToken is ERC20("WaultSwap", "WEX", 18, 0, 750000000), Ownable,
     }
 }
 
-contract WexMaster is Ownable {
+contract WexMasterTEST is Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -1318,6 +1318,9 @@ contract WexMaster is Ownable {
     function remove(
         uint256 _pid
     ) external onlyOwner validatePoolByPid(_pid) {
+        PoolInfo storage pool = poolInfo[_pid];
+        uint256 lpSupply = pool.lpToken.balanceOf(address(this));
+        require(lpSupply == 0, 'Pool not empty!');
         massUpdatePools();
         totalAllocPoint.sub(poolInfo[_pid].allocPoint);
         addedPools[address(poolInfo[_pid].lpToken)] = false;
