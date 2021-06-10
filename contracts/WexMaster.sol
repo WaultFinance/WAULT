@@ -1247,10 +1247,11 @@ contract WexMaster is Ownable {
         uint256 accWexPerShare;
     }
 
-    WaultSwapToken public wex;
+    WaultSwapToken public immutable wex;
     uint256 public wexPerBlock;
 
     PoolInfo[] public poolInfo;
+    mapping(address => bool) public addedPools;
     mapping(uint256 => mapping(address => UserInfo)) public userInfo;
     uint256 public totalAllocPoint = 0;
     uint256 public startBlock;
@@ -1258,17 +1259,24 @@ contract WexMaster is Ownable {
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event Claim(address indexed user, uint256 indexed pid, uint256 amount);
+    event SetWexPerBlock(address indexed user, uint256 wexPerBlock);
     event EmergencyWithdraw(
         address indexed user,
         uint256 indexed pid,
         uint256 amount
     );
+    
+    modifier validatePoolByPid(uint256 _pid) {
+        require (_pid < poolInfo.length && _pid >= 0 , "Pool does not exist");
+        _;
+    }
 
     constructor(
         WaultSwapToken _wex,
         uint256 _wexPerBlock,
         uint256 _startBlock
     ) public {
+        require(address(_wex) != address(0), "_wex is a zero value");
         wex = _wex;
         wexPerBlock = _wexPerBlock;
         startBlock = _startBlock;
@@ -1288,12 +1296,10 @@ contract WexMaster is Ownable {
 
     function add(
         uint256 _allocPoint,
-        IERC20 _lpToken,
-        bool _withUpdate
-    ) public onlyOwner {
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+        IERC20 _lpToken
+    ) external onlyOwner {
+        require(!addedPools[address(_lpToken)], '_lpToken already added');
+        massUpdatePools();
         uint256 lastRewardBlock = block.number > startBlock
             ? block.number
             : startBlock;
@@ -1306,16 +1312,24 @@ contract WexMaster is Ownable {
                 accWexPerShare: 0
             })
         );
+        addedPools[address(_lpToken)] = true;
+    }
+    
+    function remove(
+        uint256 _pid
+    ) external onlyOwner validatePoolByPid(_pid) {
+        massUpdatePools();
+        totalAllocPoint.sub(poolInfo[_pid].allocPoint);
+        addedPools[address(poolInfo[_pid].lpToken)] = false;
+        poolInfo[_pid] = poolInfo[poolInfo.length-1];
+        poolInfo.pop();
     }
 
     function set(
         uint256 _pid,
-        uint256 _allocPoint,
-        bool _withUpdate
-    ) public onlyOwner {
-        if (_withUpdate) {
-            massUpdatePools();
-        }
+        uint256 _allocPoint
+    ) external onlyOwner validatePoolByPid(_pid) {
+        massUpdatePools();
         totalAllocPoint = totalAllocPoint.sub(poolInfo[_pid].allocPoint).add(
             _allocPoint
         );
@@ -1325,6 +1339,7 @@ contract WexMaster is Ownable {
     function pendingWex(uint256 _pid, address _user)
         external
         view
+        validatePoolByPid(_pid)
         returns (uint256)
     {
         PoolInfo storage pool = poolInfo[_pid];
@@ -1355,7 +1370,7 @@ contract WexMaster is Ownable {
         }
     }
 
-    function updatePool(uint256 _pid) public {
+    function updatePool(uint256 _pid) public validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         if (block.number <= pool.lastRewardBlock) {
             return;
@@ -1377,7 +1392,7 @@ contract WexMaster is Ownable {
         pool.lastRewardBlock = block.number;
     }
 
-    function deposit(uint256 _pid, uint256 _amount, bool _withdrawRewards) public {
+    function deposit(uint256 _pid, uint256 _amount, bool _withdrawRewards) external validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
@@ -1406,7 +1421,7 @@ contract WexMaster is Ownable {
         emit Deposit(msg.sender, _pid, _amount);
     }
 
-    function withdraw(uint256 _pid, uint256 _amount, bool _withdrawRewards) public {
+    function withdraw(uint256 _pid, uint256 _amount, bool _withdrawRewards) external validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -1429,42 +1444,45 @@ contract WexMaster is Ownable {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
-    function emergencyWithdraw(uint256 _pid) public {
+    function emergencyWithdraw(uint256 _pid) external validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
-        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
         user.amount = 0;
         user.rewardDebt = 0;
-        user.pendingRewards = 0;
+        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
+        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
     }
 
-    function claim(uint256 _pid) public {
+    function claim(uint256 _pid) external validatePoolByPid(_pid) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
         uint256 pending = user.amount.mul(pool.accWexPerShare).div(1e12).sub(user.rewardDebt);
         if (pending > 0 || user.pendingRewards > 0) {
             user.pendingRewards = user.pendingRewards.add(pending);
-            safeWexTransfer(msg.sender, user.pendingRewards);
-            emit Claim(msg.sender, _pid, user.pendingRewards);
-            user.pendingRewards = 0;
+            uint256 claimedRewards = safeWexTransfer(msg.sender, user.pendingRewards);
+            emit Claim(msg.sender, _pid, claimedRewards);
+            user.pendingRewards = user.pendingRewards.sub(claimedRewards);
         }
         user.rewardDebt = user.amount.mul(pool.accWexPerShare).div(1e12);
     }
 
-    function safeWexTransfer(address _to, uint256 _amount) internal {
+    function safeWexTransfer(address _to, uint256 _amount) internal returns(uint256) {
         uint256 wexBal = wex.balanceOf(address(this));
         if (_amount > wexBal) {
-            wex.transfer(_to, wexBal);
+            require(wex.transfer(_to, wexBal), 'transfer failed');
+            return wexBal;
         } else {
-            wex.transfer(_to, _amount);
+            require(wex.transfer(_to, _amount), 'transfer failed');
+            return _amount;
         }
     }
 
-    function setWexPerBlock(uint256 _wexPerBlock) public onlyOwner {
+    function setWexPerBlock(uint256 _wexPerBlock) external onlyOwner {
         require(_wexPerBlock > 0, "!wexPerBlock-0");
+        massUpdatePools();
         wexPerBlock = _wexPerBlock;
+        emit SetWexPerBlock(msg.sender, _wexPerBlock);
     }
 
 }
