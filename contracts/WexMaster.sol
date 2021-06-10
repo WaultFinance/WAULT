@@ -1230,7 +1230,7 @@ contract WaultSwapToken is ERC20("WaultSwap", "WEX", 18, 0, 750000000), Ownable,
     }
 }
 
-contract WexMasterTEST is Ownable {
+contract WexMaster is Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
